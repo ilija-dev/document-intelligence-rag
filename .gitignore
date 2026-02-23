@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+.venv/
+
+# Build output
+dist/
+*.js.map
+
+# Data (persisted at runtime)
+data/
+*.db
+
+# ChromaDB persistent storage
+ingestion-service/data/
+
+# Generated sample docs (can be regenerated)
+ingestion-service/sample-docs/generated/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# Logs
+*.log
+
+# Benchmarks results (committed selectively)
+benchmarks/results/*.json
+
+
+interview-guide.md

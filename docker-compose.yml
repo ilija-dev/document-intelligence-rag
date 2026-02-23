@@ -1,0 +1,67 @@
+version: "3.8"
+
+services:
+  # ── Redis (L1 Cache) ─────────────────────────────────────
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ── Ingestion Service (Python) ───────────────────────────
+  ingestion:
+    build:
+      context: ./ingestion-service
+      dockerfile: Dockerfile
+    ports:
+      - "8100:8100"
+    volumes:
+      - chroma-data:/app/data/chroma
+      - ./ingestion-service/sample-docs:/app/sample-docs:ro
+    environment:
+      - CHROMA_PERSIST_DIR=/app/data/chroma
+      - HOST=0.0.0.0
+      - PORT=8100
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ── API Server (TypeScript) ──────────────────────────────
+  api:
+    build:
+      context: ./api-server
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - api-data:/app/data
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - INGESTION_HOST=ingestion
+      - INGESTION_PORT=8100
+      - API_PORT=3000
+      - LLM_PROVIDER=ollama
+      - LLM_BASE_URL=http://host.docker.internal:11434/v1
+      - LLM_MODEL=llama3.2
+      - LLM_API_KEY=ollama
+      - SQLITE_PATH=/app/data/conversations.db
+    depends_on:
+      redis:
+        condition: service_healthy
+      ingestion:
+        condition: service_healthy
+
+volumes:
+  redis-data:
+  chroma-data:
+  api-data:

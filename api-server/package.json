@@ -1,0 +1,30 @@
+{
+  "name": "document-intelligence-api",
+  "version": "1.0.0",
+  "description": "RAG API server with Redis caching, hybrid search, and LLM generation",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "ioredis": "^5.4.0",
+    "openai": "^4.60.0",
+    "better-sqlite3": "^11.3.0",
+    "zod": "^3.23.0",
+    "uuid": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/uuid": "^10.0.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "tsx": "^4.19.0",
+    "vitest": "^2.1.0"
+  }
+}
