@@ -18,7 +18,7 @@ graph TB
     RR --> LLM[LLM Generator]
     LLM --> Cache[Cache Result]
     Cache --> Response
-    
+
     subgraph Ingestion Pipeline - Python
         PDF[PDF/MD Files] --> Extract[Text Extraction]
         Extract --> Chunk[Chunking - 500 tok / 50 overlap]
@@ -28,7 +28,6 @@ graph TB
 
     subgraph Persistence
         SQLite[SQLite/CosmosDB]
-        Redis[(Redis Cache)]
     end
 
     QR --> SQLite
@@ -37,28 +36,29 @@ graph TB
 
 ## Why This Architecture?
 
-| Layer | Problem It Solves | Impact |
-|-------|-------------------|--------|
-| **Redis Cache** | 80% of queries are variations of 20% of questions. Without caching, every query hits embedding + vector DB + LLM (~3s) | Repeat queries return in **<100ms** (~70% reduction) |
-| **Cache Key Normalization** | "What is the return policy?" and "return policy what is" are the same question | Increased hit rate from **~40% to ~65%** |
-| **Hybrid Search** | Pure vector similarity returns false positives at 1,500+ docs (semantically similar but wrong category/date) | Metadata filters dramatically **improve precision** |
-| **Chunking Strategy** | Wrong chunk size destroys quality: too large = mixed topics, too small = lost meaning | 500 tok / 50 overlap = **best Precision@5** for document Q&A |
-| **Conversation History** | Multi-turn conversations need context; analytics reveal most-asked questions for cache warming | **Better answers** + **data-driven optimization** |
-| **Source Attribution** | Users need to trust the answer — showing "from HR-Policy.pdf, Page 3" builds confidence | Essential for **enterprise adoption** |
+| Layer                       | Problem It Solves                                                                                                      | Impact                                                       |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| **Redis Cache**             | 80% of queries are variations of 20% of questions. Without caching, every query hits embedding + vector DB + LLM (~3s) | Repeat queries return in **<100ms** (~70% reduction)         |
+| **Cache Key Normalization** | "What is the return policy?" and "return policy what is" are the same question                                         | Increased hit rate from **~40% to ~65%**                     |
+| **Hybrid Search**           | Pure vector similarity returns false positives at 1,500+ docs (semantically similar but wrong category/date)           | Metadata filters dramatically **improve precision**          |
+| **Chunking Strategy**       | Wrong chunk size destroys quality: too large = mixed topics, too small = lost meaning                                  | 500 tok / 50 overlap = **best Precision@5** for document Q&A |
+| **Conversation History**    | Multi-turn conversations need context; analytics reveal most-asked questions for cache warming                         | **Better answers** + **data-driven optimization**            |
+| **Source Attribution**      | Users need to trust the answer — showing "from HR-Policy.pdf, Page 3" builds confidence                                | Essential for **enterprise adoption**                        |
 
 ## Performance Benchmarks
 
-| Metric | Uncached (Cold) | Cached (Warm) | Improvement |
-|--------|----------------|---------------|-------------|
-| P50 Latency | ~2,500ms | ~80ms | ~97% |
-| P95 Latency | ~4,000ms | ~150ms | ~96% |
-| Cache Hit Rate | — | ~65% | — |
-| Precision@1 | 80%+ | — | — |
-| Recall@5 | 90%+ | — | — |
+| Metric         | Uncached (Cold) | Cached (Warm) | Improvement |
+| -------------- | --------------- | ------------- | ----------- |
+| P50 Latency    | ~2,500ms        | ~80ms         | ~97%        |
+| P95 Latency    | ~4,000ms        | ~150ms        | ~96%        |
+| Cache Hit Rate | —               | ~65%          | —           |
+| Precision@1    | 80%+            | —             | —           |
+| Recall@5       | 90%+            | —             | —           |
 
 ## Tech Stack
 
 ### TypeScript (API + Query Layer)
+
 - **Express.js** — REST API
 - **ioredis** — Redis caching with graceful degradation
 - **openai** — LLM calls (Ollama or Groq)
@@ -66,6 +66,7 @@ graph TB
 - **zod** — Request/response validation
 
 ### Python (Ingestion Pipeline)
+
 - **FastAPI** — Ingestion API + search endpoint
 - **ChromaDB** — Vector store with persistent storage
 - **sentence-transformers** — Embedding model (all-MiniLM-L6-v2, runs locally)
@@ -73,6 +74,7 @@ graph TB
 - **langchain-text-splitters** — RecursiveCharacterTextSplitter
 
 ### Infrastructure
+
 - **Redis** — L1 cache (Docker)
 - **Docker Compose** — One-command startup
 
@@ -155,27 +157,32 @@ document-intelligence-rag/
 ## Key Design Decisions
 
 ### Chunking: 500 tokens, 50 overlap
+
 Chunk size is the single most impactful parameter. Tested 200–1000 tokens:
+
 - **200 tokens**: LLM couldn't get enough context to reason
 - **1000 tokens**: Chunks mixed multiple topics, retrieval precision dropped
 - **500 tokens + 50 overlap**: Best Precision@5 on our evaluation set. Overlap prevents information loss at boundaries.
 
 ### Cache Key Normalization
+
 The cache key isn't the raw query string. We normalize: lowercase → strip punctuation → remove stop words → sort alphabetically → SHA-256 hash. So "What is the return policy?" and "return policy what is" hit the same cache entry.
 
 ### TTL Strategy by Category
+
 Policy documents change rarely (2-hour TTL). Meeting notes are time-sensitive (30-minute TTL). This prevents stale answers while maximizing cache utilization.
 
 ### Graceful Degradation
+
 If Redis is down, queries still work — just without caching. If the LLM is down, we return the raw retrieved chunks. The system never fails completely.
 
 ## Scaling Considerations
 
-| Scale | What Changes |
-|-------|-------------|
-| **10K docs** | Switch ChromaDB to a hosted vector DB (Pinecone, Weaviate). Add embedding queue (Redis-backed) for async ingestion. |
+| Scale         | What Changes                                                                                                                                  |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **10K docs**  | Switch ChromaDB to a hosted vector DB (Pinecone, Weaviate). Add embedding queue (Redis-backed) for async ingestion.                           |
 | **100K docs** | Shard by category/tenant. Add semantic caching (embed queries, match against cached query embeddings). Replace SQLite with CosmosDB/DynamoDB. |
-| **1M+ docs** | Multi-tier retrieval: coarse filter → fine retrieval. Add approximate nearest neighbor (ANN) indices. Dedicated embedding service with GPU. |
+| **1M+ docs**  | Multi-tier retrieval: coarse filter → fine retrieval. Add approximate nearest neighbor (ANN) indices. Dedicated embedding service with GPU.   |
 
 ## Running Tests
 
@@ -208,7 +215,9 @@ python benchmarks/retrieval_quality.py
 ## API Reference
 
 ### POST /chat
+
 Query the document collection.
+
 ```json
 {
   "query": "What is the employee leave policy?",
@@ -221,6 +230,7 @@ Query the document collection.
 ```
 
 Response:
+
 ```json
 {
   "answer": "Employees are entitled to 20 days of paid annual leave...",
@@ -237,13 +247,17 @@ Response:
 ```
 
 ### GET /documents
+
 List ingested documents with chunk counts.
 
 ### GET /documents/stats
+
 Collection statistics and category breakdown.
 
 ### GET /chat/metrics
+
 Cache performance metrics (hit rate, latency saved).
 
 ### GET /health
+
 Service health check for all dependencies.
